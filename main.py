@@ -35,7 +35,7 @@ def save(df, name):
     df.coalesce(1).write.mode("overwrite").option("header", True).csv(f"{out_dir}/{name}")
 
 
-# ---------------------------------------------------------------- Step 0: load and register
+# ----------------------------------- Step 0: load and register
 # Explicit schemas (slides "Define Schema", "CSV"): no inference pass, exact types.
 posts_schema = ("post_id STRING, user_id STRING, content STRING, timestamp TIMESTAMP, "
                 "likes INT, retweets INT, hashtags STRING, sentiment_score DOUBLE")
@@ -53,40 +53,64 @@ posts.createOrReplaceTempView("posts")
 users.createOrReplaceTempView("users")
 
 
-# ---------------------------------------------------------------- Task 1 (DataFrame API)
+# ------------------------ Task 1 (DataFrame API)
 def task1_hashtag_trends():
-    """The ten most used hashtags.
+    exploded = posts.select(
+        explode(split(col("hashtags"), ",")).alias("raw_hashtag")
+    )
 
-    The hashtags column holds a comma-separated list such as "#tech,#AI". Split it, explode
-    it into one row per hashtag (slide "Complex Types: Explode and Collect"), normalize each
-    hashtag with lower() and trim() so that #Tech, #TECH and #tech count as one, then count.
-    Columns: hashtag, count. The 10 most frequent, ordered by count descending, then hashtag.
-    """
-    # TODO
-    return None
+    result = (
+        exploded
+        .select(
+            lower(trim(col("raw_hashtag"))).alias("hashtag")
+        )
+        .groupBy("hashtag")
+        .agg(count("*").alias("count"))
+        .orderBy(desc("count"), col("hashtag").asc())
+        .limit(10)
+    )
 
+    return result
+    
 
-# ---------------------------------------------------------------- Task 2 (Spark SQL)
+# --------------------------- Task 2 (Spark SQL)
 def task2_engagement_by_age_sql():
-    """Average engagement per age group, in ONE spark.sql(...) call over the views.
-
-    Join posts with users on user_id and group by age_group.
-    Columns: age_group, posts (number of posts), avg_likes, avg_retweets (both rounded
-    to 2 decimals). Ordered by avg_likes descending.
+    query = """
+        SELECT
+            u.age_group AS age_group,
+            COUNT(*) AS posts,
+            ROUND(AVG(p.likes), 2) AS avg_likes,
+            ROUND(AVG(p.retweets), 2) AS avg_retweets
+        FROM posts p
+        JOIN users u
+            ON p.user_id = u.user_id
+        GROUP BY u.age_group
+        ORDER BY avg_likes DESC
     """
-    # TODO
-    return None
 
+    return spark.sql(query)
+   
 
 def task2_engagement_by_age_df():
     """The same result as task2_engagement_by_age_sql, written with the DataFrame API
     (join, groupBy, agg, orderBy). Both plans are printed by main() for your report.
     """
-    # TODO
-    return None
+    result = (
+        posts
+        .join(users, "user_id")
+        .groupBy("age_group")
+        .agg(
+            count("*").alias("posts"),
+            sround(avg("likes"), 2).alias("avg_likes"),
+            sround(avg("retweets"), 2).alias("avg_retweets")
+        )
+        .orderBy(desc("avg_likes"))
+    )
+
+    return result
 
 
-# ---------------------------------------------------------------- Task 3 (Spark SQL)
+# -------------------------------- Task 3 (Spark SQL)
 def task3_sentiment_vs_engagement_sql():
     """Does sentiment pay? Engagement per sentiment category, in ONE spark.sql(...) call.
 
@@ -96,20 +120,55 @@ def task3_sentiment_vs_engagement_sql():
     Columns: sentiment, posts, avg_likes, avg_retweets (both rounded to 2 decimals).
     Ordered by sentiment (so Negative, Neutral, Positive).
     """
-    # TODO
-    return None
-
-
-# ---------------------------------------------------------------- Task 4 (DataFrame API)
-def task4_top_verified_users():
-    """The five verified users with the largest reach.
-
-    reach = total likes + total retweets over all of the user's posts. Only verified users.
-    Columns: username, total_likes, total_retweets, reach. The top 5 by reach descending,
-    then username.
+    
+    query = """
+        WITH classified AS (
+            SELECT
+                CASE
+                    WHEN sentiment_score > 0.3 THEN 'Positive'
+                    WHEN sentiment_score < -0.3 THEN 'Negative'
+                    ELSE 'Neutral'
+                END AS sentiment,
+                likes,
+                retweets
+            FROM posts
+        )
+        SELECT
+            sentiment,
+            COUNT(*) AS posts,
+            ROUND(AVG(likes), 2) AS avg_likes,
+            ROUND(AVG(retweets), 2) AS avg_retweets
+        FROM classified
+        GROUP BY sentiment
+        ORDER BY sentiment
     """
-    # TODO
-    return None
+
+    return spark.sql(query)
+
+
+
+# ---------------------------- Task 4 (DataFrame API)
+def task4_top_verified_users():  
+    result = (
+        users
+        .filter(col("verified") == True)
+        .join(posts, "user_id")
+        .groupBy("username")
+        .agg(
+            ssum("likes").alias("total_likes"),
+            ssum("retweets").alias("total_retweets")
+        )
+        .withColumn(
+            "reach",
+            col("total_likes") + col("total_retweets")
+        )
+        .select("username", "total_likes", "total_retweets", "reach")
+        .orderBy(desc("reach"), col("username").asc())
+        .limit(5)
+    )
+
+    return result
+
 
 
 save(task1_hashtag_trends(), "task1")
