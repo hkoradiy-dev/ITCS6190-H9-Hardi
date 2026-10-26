@@ -90,8 +90,9 @@ QUIT;
 docker exec -it spark-master /opt/spark/bin/pyspark \
   --master spark://spark-master:7077
 ```
-In the PySpark shell, the CSV files were loaded into DataFrames, registered as temporary views, and Task 2 was executed using the DataFrame API. Its output matched the SQL output.
+In the interactive Spark SQL shell, temporary views were created for posts and users, then the Task 2 SQL and Task 3 SQL queries were run. In the PySpark shell, the Task 2 DataFrame query was run and its plan was inspected using result.explain(True). The complete main.py run completed all four tasks without errors.
 
+README deviations: The interactive Spark SQL and PySpark shells were used in addition to running the complete program with spark-submit, to verify the SQL and DataFrame queries and inspect the execution plan.
 ---
 
 ## Results
@@ -214,19 +215,15 @@ Your comparison: are the two plans the same? Which operator is the join and whic
 join did Spark choose, where are the `Exchange` operators and why are they needed, and what
 does this tell you about choosing between SQL and the DataFrame API?
 
-The SQL and DataFrame implementations returned the same three age-group rows and the same averages. However, the two physical plans should be compared using their actual output; they are not guaranteed to be textually identical.
+- Apart from generated expression IDs (#n) and plan_id values, the two plans are identical. This shows that Spark SQL and the DataFrame API go through the same Spark optimizer and are optimized to the same execution plan for this query. Therefore, there is no performance difference between the SQL and DataFrame versions of this query simply because one is written in SQL and the other uses the DataFrame API. Both express the same computation and Spark executes the same optimized plan.
 
-In the DataFrame plan, BroadcastHashJoin is the join operator. Spark chose an inner broadcast hash join and broadcast the users-side data (BuildRight) to join records by user_id.
+- The join operator is BroadcastHashJoin, an inner join on user_id. Spark chose a broadcast hash join because the users table is small enough to broadcast. Spark broadcasts the users-side data to the workers processing the posts, so the posts rows do not need to be shuffled across the cluster for the join itself.
 
-There are two visible Exchange operators:
+The physical plan contains two Exchange operators:
+- Exchange hashpartitioning(age_group, 200) redistributes records by age_group so rows for each group can be combined correctly during aggregation.
+- Exchange rangepartitioning(avg_likes DESC NULLS LAST, 200) prepares the result for the requested sort by descending average likes.
+The plan also contains partial and final HashAggregate stages, allowing Spark to combine intermediate counts and averages before producing final results. The important conclusion is that choosing SQL versus the DataFrame API does not by itself make this query faster: Spark optimizes both forms to the same plan.
 
-Exchange hashpartitioning(age_group, 200) redistributes intermediate records by age group so that records belonging to the same group can be aggregated together.
-
-Exchange rangepartitioning(avg_likes DESC NULLS LAST, 200) prepares the results for the final ordered output.
-
-The HashAggregate operations show partial aggregation followed by final aggregation. This lets Spark combine intermediate counts and averages rather than sending every raw record directly through the final aggregation stage.
-
-SQL and the DataFrame API are alternative ways to express the same data transformation. The results here show that either approach can produce the same answer. The execution plan, rather than the source syntax alone, explains how Spark chose to execute the query.
 
 ---
 
@@ -236,12 +233,11 @@ What did `createOrReplaceTempView("posts")` do, and what did it not do? Was any 
 What happens to the views when the program ends, and how would you keep a table for the
 next session?
 
-- createOrReplaceTempView("posts") registered the existing posts DataFrame under the SQL name posts in the current Spark session. It allowed queries such as SELECT * FROM posts LIMIT 5 and the Task 2 and Task 3 SQL queries to refer to that DataFrame using SQL syntax.
+- createOrReplaceTempView("posts") registered the existing posts DataFrame under the SQL name posts in the current Spark session. This allowed SQL queries to refer to the DataFrame using FROM posts.
 
-- It did not create a permanent database table or persist a separate copy of the data. The view is a temporary name for the DataFrame's query plan; the CSV data remains in its input files, and Spark reads it as needed.
+- It did not create a permanent database table or copy all the CSV data into a new table. It registered a temporary view of the DataFrame's query plan; the source CSV data remains in the input files and is read by Spark as needed.
 
-- The temporary view is scoped to the Spark session and is no longer available after that session ends. To keep data available in later sessions, the data can be written to persistent storage, such as Parquet files, or saved as a table in a persistent catalog.
-
+- The temporary view is scoped to the Spark session and disappears when that session ends. To keep data available in a later session, write it to persistent storage (for example, Parquet files) or save it as a table in a persistent catalog.
 ---
 
 ## Problems and fixes
