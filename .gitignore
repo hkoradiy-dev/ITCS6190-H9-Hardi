@@ -1,0 +1,18 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Log files
+*.log
+l9-run.log
+
+# Generated input CSV files
+shared-folder/input/*.csv
+
+# All generated Spark output files and folders
+shared-folder/output/
+
+# Ignore Spark metadata anywhere else
+_SUCCESS
+._SUCCESS.crc
+*.crc
