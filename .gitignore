@@ -1,18 +1,35 @@
-# Python cache
+# Task 1 generated output
+shared-folder/output/task1/_SUCCESS
+shared-folder/output/task1/._SUCCESS.crc
+shared-folder/output/task1/part-00000-3e6fa50b-e17d-4968-81f2-d406b898dc11-c000.csv
+shared-folder/output/task1/.part-00000-3e6fa50b-e17d-4968-81f2-d406b898dc11-c000.csv.crc
+
+# Task 2 generated output
+shared-folder/output/task2/_SUCCESS
+shared-folder/output/task2/._SUCCESS.crc
+shared-folder/output/task2/part-00000-d850156d-a0a6-441e-aed2-da4a52200731-c000.csv
+shared-folder/output/task2/.part-00000-d850156d-a0a6-441e-aed2-da4a52200731-c000.csv.crc
+
+# Task 3 generated output
+shared-folder/output/task3/_SUCCESS
+shared-folder/output/task3/._SUCCESS.crc
+shared-folder/output/task3/part-00000-407e37c1-b5a6-4b32-bbe4-7ddbeb6d5849-c000.csv
+shared-folder/output/task3/.part-00000-407e37c1-b5a6-4b32-bbe4-7ddbeb6d5849-c000.csv.crc
+
+# Task 4 generated output
+shared-folder/output/task4/_SUCCESS
+shared-folder/output/task4/._SUCCESS.crc
+shared-folder/output/task4/part-00000-e615aad0-f2a1-4e88-8a44-462c8f56d023-c000.csv
+shared-folder/output/task4/.part-00000-e615aad0-f2a1-4e88-8a44-462c8f56d023-c000.csv.crc
+
+# Other generated Spark output files
+shared-folder/output/**/*.csv
+shared-folder/output/**/*.crc
+
+# Python cache and logs
 __pycache__/
 *.py[cod]
-
-# Log files
 *.log
-l9-run.log
 
 # Generated input CSV files
 shared-folder/input/*.csv
-
-# All generated Spark output files and folders
-shared-folder/output/
-
-# Ignore Spark metadata anywhere else
-_SUCCESS
-._SUCCESS.crc
-*.crc
